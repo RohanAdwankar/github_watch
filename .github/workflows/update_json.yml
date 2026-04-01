@@ -38,6 +38,8 @@ jobs:
           node-version: "22"
 
       - name: Update heatmap JSON
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/update-heatmap.mjs
 
       - name: Commit updated data

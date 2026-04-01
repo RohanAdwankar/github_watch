@@ -61,12 +61,17 @@ async function readExisting() {
 }
 
 async function githubFetch(url) {
+  const headers = {
+    Accept: "application/vnd.github+json",
+    "User-Agent": "github-watch",
+    "X-GitHub-Api-Version": "2022-11-28",
+  };
+  const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
   const response = await fetch(url, {
-    headers: {
-      Accept: "application/vnd.github+json",
-      "User-Agent": "github-watch",
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
+    headers,
   });
   if (!response.ok) {
     throw new Error(`GitHub request failed: ${response.status}`);

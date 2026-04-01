@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GitHub Watch</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="panel header">
+        <div class="header-row">
+          <h1 class="title">GitHub Watch</h1>
+          <div class="subtitle">Treemap of the largest code repos on GitHub.</div>
+        </div>
+        <div class="meta-row">
+          <div class="meta" id="generated-at">Loading data…</div>
+          <div class="legend" id="legend">Size = current stars. Color = selected performance window.</div>
+        </div>
+      </section>
+
+      <section class="panel toolbar">
+        <div class="stats">
+          <div class="stat">
+            <div class="stat-label">Repos</div>
+            <div class="stat-value" id="stat-repos">0</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Stars</div>
+            <div class="stat-value" id="stat-stars">0</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Green</div>
+            <div class="stat-value" id="stat-green">0</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Red</div>
+            <div class="stat-value" id="stat-red">0</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Measured</div>
+            <div class="stat-value" id="stat-measured">0</div>
+          </div>
+        </div>
+        <div class="window-bar" id="window-bar"></div>
+        <div class="note" id="note"></div>
+      </section>
+
+      <section class="panel board" id="board">
+        <div class="status">Loading repositories…</div>
+      </section>
+    </main>
+
+    <div class="tooltip" id="tooltip"></div>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "generatedAt": null,
+  "windows": [
+    { "key": "10m", "label": "10m", "minutes": 10 },
+    { "key": "1h", "label": "1h", "minutes": 60 },
+    { "key": "6h", "label": "6h", "minutes": 360 },
+    { "key": "24h", "label": "24h", "minutes": 1440 },
+    { "key": "7d", "label": "7d", "minutes": 10080 }
+  ],
+  "repos": []
+}

@@ -1,6 +1,45 @@
 const board = document.getElementById("board");
 const tooltip = document.getElementById("tooltip");
 const windowBar = document.getElementById("window-bar");
+const groupingBar = document.getElementById("grouping-bar");
+
+const GROUPING_OPTIONS = [
+  { key: "language", label: "Language" },
+  { key: "topic", label: "Topics" },
+];
+
+const TOPIC_CLUSTERS = [
+  { name: "AI", topics: ["ai", "agents", "agent", "llm", "gpt", "openai", "anthropic", "rag", "mcp", "machine-learning", "deep-learning", "generative-ai"] },
+  { name: "Web", topics: ["web", "web-framework", "frontend", "backend", "fullstack", "spa", "ssr", "serverless"] },
+  { name: "React", topics: ["react", "nextjs", "react-native", "jsx", "redux", "tailwindcss"] },
+  { name: "Developer Tools", topics: ["developer-tools", "devtools", "build-tool", "testing", "testing-tools", "automation", "compiler", "bundler", "linter"] },
+  { name: "CLI & Terminal", topics: ["cli", "terminal", "shell", "command-line", "terminal-emulators"] },
+  { name: "Data & Databases", topics: ["database", "postgres", "postgresql", "mysql", "sqlite", "redis", "analytics", "data-science", "data-visualization"] },
+  { name: "Infra & DevOps", topics: ["kubernetes", "docker", "cloud", "observability", "monitoring", "infrastructure", "deployment", "networking"] },
+  { name: "Security", topics: ["security", "privacy", "reverse-engineering", "pentest", "encryption"] },
+  { name: "Mobile", topics: ["android", "ios", "flutter", "mobile", "macos", "windows", "linux"] },
+  { name: "Design & UI", topics: ["ui", "components", "design-systems", "visualization", "diagram", "drawing", "whiteboard"] },
+  { name: "Media", topics: ["audio", "video", "image", "ocr", "speech", "diffusion", "photo", "streaming"] },
+  { name: "Education", topics: ["education", "tutorial", "learning", "algorithms", "interview", "books"] },
+  { name: "Finance", topics: ["finance", "trading", "crypto", "bitcoin"] },
+  { name: "Games", topics: ["game", "game-engine", "graphics", "gamedev"] },
+];
+
+const TOPIC_STOPWORDS = new Set([
+  "javascript",
+  "typescript",
+  "python",
+  "java",
+  "go",
+  "rust",
+  "library",
+  "framework",
+  "frontend",
+  "backend",
+  "declarative",
+  "open-source",
+  "api",
+]);
 
 function formatNumber(value) {
   return new Intl.NumberFormat("en-US", {
@@ -97,6 +136,63 @@ function computeRepo(repo, windowMinutes) {
   };
 }
 
+function normalizeTopic(topic) {
+  return String(topic || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-");
+}
+
+function titleCaseTopic(topic) {
+  return topic
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function buildTopicFrequency(repos) {
+  const counts = new Map();
+  for (const repo of repos) {
+    for (const rawTopic of repo.topics || []) {
+      const topic = normalizeTopic(rawTopic);
+      if (!topic || TOPIC_STOPWORDS.has(topic)) continue;
+      counts.set(topic, (counts.get(topic) || 0) + 1);
+    }
+  }
+  return counts;
+}
+
+function topicGroupForRepo(repo, topicFrequency) {
+  const topics = (repo.topics || []).map(normalizeTopic).filter(Boolean);
+  let bestCluster = null;
+  let bestScore = 0;
+
+  for (const cluster of TOPIC_CLUSTERS) {
+    let score = 0;
+    for (const topic of topics) {
+      if (cluster.topics.includes(topic)) score += 3;
+      else if (cluster.topics.some((needle) => topic.includes(needle) || needle.includes(topic))) score += 1;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestCluster = cluster.name;
+    }
+  }
+
+  if (bestCluster) return bestCluster;
+
+  const rankedTopics = topics
+    .filter((topic) => !TOPIC_STOPWORDS.has(topic))
+    .map((topic) => ({ topic, frequency: topicFrequency.get(topic) || 0 }))
+    .sort((a, b) => b.frequency - a.frequency);
+
+  if (rankedTopics[0]?.frequency >= 6) {
+    return titleCaseTopic(rankedTopics[0].topic);
+  }
+
+  return "Other Topics";
+}
+
 function getAvailableWindows(repos, windows) {
   const timestamps = repos
     .flatMap((repo) => (repo.starHistory || []).map((point) => new Date(point.ts).getTime()))
@@ -106,12 +202,15 @@ function getAvailableWindows(repos, windows) {
   return windows.filter((window) => ageMinutes >= window.minutes);
 }
 
-function buildSnapshot(data, selectedWindow) {
+function buildSnapshot(data, selectedWindow, groupingMode) {
   const repos = data.repos.map((repo) => computeRepo(repo, selectedWindow.minutes)).sort((a, b) => b.stars - a.stars);
   const sectorsByName = new Map();
+  const topicFrequency = buildTopicFrequency(repos);
+
   for (const repo of repos) {
-    if (!sectorsByName.has(repo.language)) sectorsByName.set(repo.language, []);
-    sectorsByName.get(repo.language).push(repo);
+    const groupName = groupingMode === "topic" ? topicGroupForRepo(repo, topicFrequency) : repo.language;
+    if (!sectorsByName.has(groupName)) sectorsByName.set(groupName, []);
+    sectorsByName.get(groupName).push(repo);
   }
   const sectors = [...sectorsByName.entries()]
     .map(([name, members]) => ({
@@ -124,6 +223,7 @@ function buildSnapshot(data, selectedWindow) {
   return {
     generatedAt: data.generatedAt,
     selectedWindow,
+    groupingMode,
     availableWindows: getAvailableWindows(data.repos, data.windows),
     stats: {
       totalRepos: repos.length,
@@ -140,7 +240,7 @@ function draw(snapshot) {
   document.getElementById("generated-at").textContent = snapshot.generatedAt
     ? `Cached snapshot from ${new Date(snapshot.generatedAt).toLocaleString()}.`
     : "No snapshot yet.";
-  document.getElementById("legend").textContent = `Size = current stars. Color = change over ${snapshot.selectedWindow.label}.`;
+  document.getElementById("legend").textContent = `Size = current stars. Color = change over ${snapshot.selectedWindow.label}. Grouped by ${snapshot.groupingMode}.`;
   document.getElementById("stat-repos").textContent = formatNumber(snapshot.stats.totalRepos);
   document.getElementById("stat-stars").textContent = formatNumber(snapshot.stats.totalStars);
   document.getElementById("stat-green").textContent = formatNumber(snapshot.stats.greenCount);
@@ -242,22 +342,32 @@ async function init() {
   const data = await response.json();
   const availableWindows = getAvailableWindows(data.repos, data.windows);
   let currentWindow = availableWindows[availableWindows.length - 1] || data.windows[0];
+  let currentGrouping = GROUPING_OPTIONS[0];
 
-  function render(window) {
+  function render(window, grouping = currentGrouping) {
     currentWindow = window;
+    currentGrouping = grouping;
+    groupingBar.innerHTML = "";
+    for (const option of GROUPING_OPTIONS) {
+      const button = document.createElement("button");
+      button.textContent = option.label;
+      if (option.key === grouping.key) button.classList.add("active");
+      button.addEventListener("click", () => render(currentWindow, option));
+      groupingBar.appendChild(button);
+    }
     windowBar.innerHTML = "";
     for (const item of availableWindows) {
       const button = document.createElement("button");
       button.textContent = item.label;
       if (item.key === window.key) button.classList.add("active");
-      button.addEventListener("click", () => render(item));
+      button.addEventListener("click", () => render(item, currentGrouping));
       windowBar.appendChild(button);
     }
-    draw(buildSnapshot(data, window));
+    draw(buildSnapshot(data, window, grouping.key));
   }
 
-  render(currentWindow);
-  window.addEventListener("resize", () => render(currentWindow));
+  render(currentWindow, currentGrouping);
+  window.addEventListener("resize", () => render(currentWindow, currentGrouping));
 }
 
 init().catch(() => {

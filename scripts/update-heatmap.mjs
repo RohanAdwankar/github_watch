@@ -46,7 +46,7 @@ function isListLike(repo) {
   if (markers.some((marker) => ` ${text} `.includes(marker))) {
     return true;
   }
-  if (!repo.language || repo.language === "Markdown") {
+  if (!repo.language || repo.language === "Markdown" || repo.language === "Other") {
     return true;
   }
   return (repo.size || 0) < 80;

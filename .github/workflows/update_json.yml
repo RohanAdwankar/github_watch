@@ -1,6 +1,14 @@
 name: Update Heatmap Data
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - "site/**"
+      - ".github/workflows/update_json.yml"
+      - "scripts/update-heatmap.mjs"
+      - "README.md"
   schedule:
     - cron: "*/10 * * * *"
   workflow_dispatch:
@@ -16,6 +24,7 @@ concurrency:
 
 jobs:
   update-data:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -44,13 +53,44 @@ jobs:
         with:
           path: ./site
 
-  deploy:
+  upload-static:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./site
+
+  deploy-from-update:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     needs: update-data
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  deploy-from-push:
+    if: github.event_name == 'push'
+    needs: upload-static
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

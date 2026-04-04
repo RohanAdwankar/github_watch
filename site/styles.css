@@ -158,6 +158,20 @@ a {
   text-transform: uppercase;
 }
 
+.control-input {
+  width: 56px;
+  border: 1px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  padding: 7px 8px;
+  font: inherit;
+  border-radius: 0;
+}
+
+.control-input:focus {
+  outline: none;
+}
+
 .scale-legend {
   display: flex;
   align-items: center;

@@ -5,12 +5,8 @@ const groupingBar = document.getElementById("grouping-bar");
 const colorControls = document.getElementById("color-controls");
 const scaleLegend = document.getElementById("scale-legend");
 
-const COLOR_MODE_KEY = "github-watch-color-mode";
-const COLOR_MODES = [
-  { key: "soft", label: "Soft", boundMultiplier: 1.8 },
-  { key: "balanced", label: "Balanced", boundMultiplier: 1 },
-  { key: "punchy", label: "Punchy", boundMultiplier: 0.62 },
-];
+const COLOR_TIGHTNESS_KEY = "github-watch-color-tightness";
+const DEFAULT_COLOR_TIGHTNESS = 0.5;
 
 const GROUPING_OPTIONS = [
   { key: "language", label: "Language" },
@@ -84,7 +80,18 @@ function formatPercent(value) {
   return `${value >= 0 ? "+" : ""}${value.toFixed(digits)}%`;
 }
 
-function buildColorScale(repos, colorMode) {
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function tightnessToBoundMultiplier(tightness) {
+  const clamped = clamp(tightness, 0, 1);
+  if (clamped <= 0) return 0.02;
+  if (clamped >= 1) return 1e6;
+  return clamped / (1 - clamped);
+}
+
+function buildColorScale(repos, tightness) {
   const negatives = repos
     .filter((repo) => repo.growthMode === "delta" && repo.growthPercent < 0)
     .map((repo) => Math.abs(repo.growthPercent))
@@ -93,7 +100,7 @@ function buildColorScale(repos, colorMode) {
     .filter((repo) => repo.growthMode === "delta" && repo.growthPercent > 0)
     .map((repo) => repo.growthPercent)
     .sort((a, b) => a - b);
-  const multiplier = colorMode?.boundMultiplier || 1;
+  const multiplier = tightnessToBoundMultiplier(tightness);
   const negativeBound = (negatives.length ? Math.max(quantile(negatives, 0.9), negatives[0]) : 0.05) * multiplier;
   const positiveBound = (positives.length ? Math.max(quantile(positives, 0.9), positives[0]) : 0.25) * multiplier;
   return {
@@ -127,18 +134,20 @@ function renderScaleLegend(scale) {
   `;
 }
 
-function readSavedColorMode() {
+function readSavedTightness() {
   try {
-    const saved = window.localStorage.getItem(COLOR_MODE_KEY);
-    return COLOR_MODES.find((mode) => mode.key === saved) || COLOR_MODES[1];
+    const raw = window.localStorage.getItem(COLOR_TIGHTNESS_KEY);
+    if (raw === null || raw === "") return DEFAULT_COLOR_TIGHTNESS;
+    const saved = Number(raw);
+    return Number.isFinite(saved) ? clamp(saved, 0, 1) : DEFAULT_COLOR_TIGHTNESS;
   } catch {
-    return COLOR_MODES[1];
+    return DEFAULT_COLOR_TIGHTNESS;
   }
 }
 
-function saveColorMode(mode) {
+function saveTightness(tightness) {
   try {
-    window.localStorage.setItem(COLOR_MODE_KEY, mode.key);
+    window.localStorage.setItem(COLOR_TIGHTNESS_KEY, String(clamp(tightness, 0, 1)));
   } catch {
     // Ignore local storage failures in constrained browsers.
   }
@@ -284,9 +293,9 @@ function getAvailableWindows(repos, windows) {
   return windows.filter((window) => ageMinutes >= window.minutes);
 }
 
-function buildSnapshot(data, selectedWindow, groupingMode, colorMode) {
+function buildSnapshot(data, selectedWindow, groupingMode, tightness) {
   const computedRepos = data.repos.map((repo) => computeRepo(repo, selectedWindow.minutes));
-  const colorScale = buildColorScale(computedRepos, colorMode);
+  const colorScale = buildColorScale(computedRepos, tightness);
   const repos = computedRepos
     .map((repo) => ({
       ...repo,
@@ -313,7 +322,7 @@ function buildSnapshot(data, selectedWindow, groupingMode, colorMode) {
     generatedAt: data.generatedAt,
     selectedWindow,
     groupingMode,
-    colorMode,
+    colorTightness: tightness,
     availableWindows: getAvailableWindows(data.repos, data.windows),
     stats: {
       totalRepos: repos.length,
@@ -430,18 +439,18 @@ async function init() {
   const availableWindows = getAvailableWindows(data.repos, data.windows);
   let currentWindow = availableWindows[availableWindows.length - 1] || data.windows[0];
   let currentGrouping = GROUPING_OPTIONS[0];
-  let currentColorMode = readSavedColorMode();
+  let currentColorTightness = readSavedTightness();
 
-  function render(window, grouping = currentGrouping, colorMode = currentColorMode) {
+  function render(window, grouping = currentGrouping, colorTightness = currentColorTightness) {
     currentWindow = window;
     currentGrouping = grouping;
-    currentColorMode = colorMode;
+    currentColorTightness = colorTightness;
     groupingBar.innerHTML = "";
     for (const option of GROUPING_OPTIONS) {
       const button = document.createElement("button");
       button.textContent = option.label;
       if (option.key === grouping.key) button.classList.add("active");
-      button.addEventListener("click", () => render(currentWindow, option, currentColorMode));
+      button.addEventListener("click", () => render(currentWindow, option, currentColorTightness));
       groupingBar.appendChild(button);
     }
     windowBar.innerHTML = "";
@@ -449,28 +458,44 @@ async function init() {
       const button = document.createElement("button");
       button.textContent = item.label;
       if (item.key === window.key) button.classList.add("active");
-      button.addEventListener("click", () => render(item, currentGrouping, currentColorMode));
+      button.addEventListener("click", () => render(item, currentGrouping, currentColorTightness));
       windowBar.appendChild(button);
     }
 
-    colorControls.innerHTML = `<div class="control-label">Color</div>`;
-    for (const mode of COLOR_MODES) {
-      const button = document.createElement("button");
-      button.textContent = mode.label;
-      if (mode.key === colorMode.key) button.classList.add("active");
-      button.addEventListener("click", () => {
-        saveColorMode(mode);
-        render(currentWindow, currentGrouping, mode);
-      });
-      colorControls.appendChild(button);
-    }
-    colorControls.className = "control-bar";
+    colorControls.innerHTML = `
+      <div class="control-label">Sigma</div>
+      <input
+        id="tightness-input"
+        class="control-input"
+        type="text"
+        inputmode="decimal"
+        value="${currentColorTightness.toFixed(2)}"
+        aria-label="Color sigma"
+        title="0 = very saturated, 1 = mostly white"
+      />
+    `;
 
-    draw(buildSnapshot(data, window, grouping.key, colorMode));
+    const tightnessInput = document.getElementById("tightness-input");
+    const applyTightness = () => {
+      const parsed = Number(tightnessInput.value);
+      const nextTightness = Number.isFinite(parsed) ? clamp(parsed, 0, 1) : currentColorTightness;
+      saveTightness(nextTightness);
+      render(currentWindow, currentGrouping, nextTightness);
+    };
+    tightnessInput.addEventListener("change", applyTightness);
+    tightnessInput.addEventListener("blur", applyTightness);
+    tightnessInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        applyTightness();
+      }
+    });
+
+    draw(buildSnapshot(data, window, grouping.key, colorTightness));
   }
 
-  render(currentWindow, currentGrouping, currentColorMode);
-  window.addEventListener("resize", () => render(currentWindow, currentGrouping, currentColorMode));
+  render(currentWindow, currentGrouping, currentColorTightness);
+  window.addEventListener("resize", () => render(currentWindow, currentGrouping, currentColorTightness));
 }
 
 init().catch(() => {

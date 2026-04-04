@@ -3,3 +3,4 @@ node_modules/
 .venv/
 .cache/
 __pycache__/
+notes.md

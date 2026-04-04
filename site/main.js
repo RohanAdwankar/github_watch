@@ -228,9 +228,6 @@ function buildSnapshot(data, selectedWindow, groupingMode) {
     stats: {
       totalRepos: repos.length,
       totalStars: repos.reduce((sum, repo) => sum + repo.stars, 0),
-      greenCount: repos.filter((repo) => repo.growthScore > 0.12).length,
-      redCount: repos.filter((repo) => repo.growthScore < -0.12).length,
-      actualGrowthCount: repos.filter((repo) => repo.growthMode === "delta").length,
     },
     sectors,
   };
@@ -243,12 +240,6 @@ function draw(snapshot) {
   document.getElementById("legend").textContent = `Size = current stars. Color = change over ${snapshot.selectedWindow.label}. Grouped by ${snapshot.groupingMode}.`;
   document.getElementById("stat-repos").textContent = formatNumber(snapshot.stats.totalRepos);
   document.getElementById("stat-stars").textContent = formatNumber(snapshot.stats.totalStars);
-  document.getElementById("stat-green").textContent = formatNumber(snapshot.stats.greenCount);
-  document.getElementById("stat-red").textContent = formatNumber(snapshot.stats.redCount);
-  document.getElementById("stat-measured").textContent = formatNumber(snapshot.stats.actualGrowthCount);
-  document.getElementById("note").textContent = snapshot.availableWindows.length
-    ? "The UI only shows timeframes that actually exist in the stored history."
-    : "Only the grid is available until the next sync creates the first comparison window.";
 
   board.innerHTML = "";
   const rect = board.getBoundingClientRect();

@@ -38,6 +38,23 @@ a {
   color: inherit;
 }
 
+.legend-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.source-link {
+  font-size: 13px;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.source-link:hover {
+  color: var(--ink);
+}
+
 .shell {
   min-height: 100vh;
   padding: 18px;
@@ -77,8 +94,7 @@ a {
 
 .subtitle,
 .meta,
-.legend,
-.note {
+.legend {
   font-size: 13px;
   color: var(--muted);
 }
@@ -235,10 +251,13 @@ button.active {
     display: block;
   }
 
-  .legend,
-  .note,
+  .legend-block,
   .window-bar {
     margin-top: 8px;
+  }
+
+  .legend-block {
+    align-items: flex-start;
   }
 
   .stats {

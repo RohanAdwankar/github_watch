@@ -3,7 +3,7 @@
   --panel: rgba(252, 252, 248, 0.88);
   --ink: #11110f;
   --muted: #5c5c57;
-  --line: #d3d3ca;
+  --line: #11110f;
   --sector: #e9e9e1;
   --green: #2f8f5b;
   --red: #b64237;
@@ -184,7 +184,7 @@ button.active {
   position: absolute;
   overflow: hidden;
   background: var(--sector);
-  border: 3px solid rgba(0, 0, 0, 0.24);
+  border: 2px solid var(--ink);
 }
 
 .sector-label {
@@ -197,7 +197,7 @@ button.active {
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  border-bottom: 2px solid rgba(0, 0, 0, 0.18);
+  border-bottom: 1px solid var(--ink);
   background: rgba(233, 233, 225, 0.95);
   z-index: 2;
 }
@@ -209,7 +209,7 @@ button.active {
   flex-direction: column;
   justify-content: space-between;
   padding: 3px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(17, 17, 15, 0.2);
   text-decoration: none;
 }
 

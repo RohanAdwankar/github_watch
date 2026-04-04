@@ -2,7 +2,15 @@ const board = document.getElementById("board");
 const tooltip = document.getElementById("tooltip");
 const windowBar = document.getElementById("window-bar");
 const groupingBar = document.getElementById("grouping-bar");
+const colorControls = document.getElementById("color-controls");
 const scaleLegend = document.getElementById("scale-legend");
+
+const COLOR_MODE_KEY = "github-watch-color-mode";
+const COLOR_MODES = [
+  { key: "soft", label: "Soft", boundMultiplier: 1.8 },
+  { key: "balanced", label: "Balanced", boundMultiplier: 1 },
+  { key: "punchy", label: "Punchy", boundMultiplier: 0.62 },
+];
 
 const GROUPING_OPTIONS = [
   { key: "language", label: "Language" },
@@ -76,7 +84,7 @@ function formatPercent(value) {
   return `${value >= 0 ? "+" : ""}${value.toFixed(digits)}%`;
 }
 
-function buildColorScale(repos) {
+function buildColorScale(repos, colorMode) {
   const negatives = repos
     .filter((repo) => repo.growthMode === "delta" && repo.growthPercent < 0)
     .map((repo) => Math.abs(repo.growthPercent))
@@ -85,8 +93,9 @@ function buildColorScale(repos) {
     .filter((repo) => repo.growthMode === "delta" && repo.growthPercent > 0)
     .map((repo) => repo.growthPercent)
     .sort((a, b) => a - b);
-  const negativeBound = negatives.length ? Math.max(quantile(negatives, 0.9), negatives[0]) : 0.05;
-  const positiveBound = positives.length ? Math.max(quantile(positives, 0.9), positives[0]) : 0.25;
+  const multiplier = colorMode?.boundMultiplier || 1;
+  const negativeBound = (negatives.length ? Math.max(quantile(negatives, 0.9), negatives[0]) : 0.05) * multiplier;
+  const positiveBound = (positives.length ? Math.max(quantile(positives, 0.9), positives[0]) : 0.25) * multiplier;
   return {
     negativeBound,
     positiveBound,
@@ -108,15 +117,31 @@ function scoreForPercent(percent, scale) {
   return Math.sqrt(Math.min(1, percent / Math.max(scale.positiveBound, 0.0001)));
 }
 
-function renderScaleLegend(scale, windowLabel) {
+function renderScaleLegend(scale) {
   scaleLegend.innerHTML = `
-    <div class="scale-legend-label">${windowLabel} change</div>
     <div class="scale-legend-bar">
       ${scale.legendStops.map((stop) => `
         <div class="scale-legend-step ${Math.abs(stop.value) > 0.35 ? "dark" : ""}" style="background:${colorForScore(stop.value)}">${stop.label}</div>
       `).join("")}
     </div>
   `;
+}
+
+function readSavedColorMode() {
+  try {
+    const saved = window.localStorage.getItem(COLOR_MODE_KEY);
+    return COLOR_MODES.find((mode) => mode.key === saved) || COLOR_MODES[1];
+  } catch {
+    return COLOR_MODES[1];
+  }
+}
+
+function saveColorMode(mode) {
+  try {
+    window.localStorage.setItem(COLOR_MODE_KEY, mode.key);
+  } catch {
+    // Ignore local storage failures in constrained browsers.
+  }
 }
 
 function binaryTreemap(items, x, y, width, height) {
@@ -259,9 +284,9 @@ function getAvailableWindows(repos, windows) {
   return windows.filter((window) => ageMinutes >= window.minutes);
 }
 
-function buildSnapshot(data, selectedWindow, groupingMode) {
+function buildSnapshot(data, selectedWindow, groupingMode, colorMode) {
   const computedRepos = data.repos.map((repo) => computeRepo(repo, selectedWindow.minutes));
-  const colorScale = buildColorScale(computedRepos);
+  const colorScale = buildColorScale(computedRepos, colorMode);
   const repos = computedRepos
     .map((repo) => ({
       ...repo,
@@ -288,6 +313,7 @@ function buildSnapshot(data, selectedWindow, groupingMode) {
     generatedAt: data.generatedAt,
     selectedWindow,
     groupingMode,
+    colorMode,
     availableWindows: getAvailableWindows(data.repos, data.windows),
     stats: {
       totalRepos: repos.length,
@@ -305,7 +331,7 @@ function draw(snapshot) {
   document.getElementById("legend").textContent = `Size = current stars. Color = change over ${snapshot.selectedWindow.label}. Grouped by ${snapshot.groupingMode}.`;
   document.getElementById("stat-repos").textContent = formatNumber(snapshot.stats.totalRepos);
   document.getElementById("stat-stars").textContent = formatNumber(snapshot.stats.totalStars);
-  renderScaleLegend(snapshot.colorScale, snapshot.selectedWindow.label);
+  renderScaleLegend(snapshot.colorScale);
 
   board.innerHTML = "";
   const rect = board.getBoundingClientRect();
@@ -404,16 +430,18 @@ async function init() {
   const availableWindows = getAvailableWindows(data.repos, data.windows);
   let currentWindow = availableWindows[availableWindows.length - 1] || data.windows[0];
   let currentGrouping = GROUPING_OPTIONS[0];
+  let currentColorMode = readSavedColorMode();
 
-  function render(window, grouping = currentGrouping) {
+  function render(window, grouping = currentGrouping, colorMode = currentColorMode) {
     currentWindow = window;
     currentGrouping = grouping;
+    currentColorMode = colorMode;
     groupingBar.innerHTML = "";
     for (const option of GROUPING_OPTIONS) {
       const button = document.createElement("button");
       button.textContent = option.label;
       if (option.key === grouping.key) button.classList.add("active");
-      button.addEventListener("click", () => render(currentWindow, option));
+      button.addEventListener("click", () => render(currentWindow, option, currentColorMode));
       groupingBar.appendChild(button);
     }
     windowBar.innerHTML = "";
@@ -421,14 +449,28 @@ async function init() {
       const button = document.createElement("button");
       button.textContent = item.label;
       if (item.key === window.key) button.classList.add("active");
-      button.addEventListener("click", () => render(item, currentGrouping));
+      button.addEventListener("click", () => render(item, currentGrouping, currentColorMode));
       windowBar.appendChild(button);
     }
-    draw(buildSnapshot(data, window, grouping.key));
+
+    colorControls.innerHTML = `<div class="control-label">Color</div>`;
+    for (const mode of COLOR_MODES) {
+      const button = document.createElement("button");
+      button.textContent = mode.label;
+      if (mode.key === colorMode.key) button.classList.add("active");
+      button.addEventListener("click", () => {
+        saveColorMode(mode);
+        render(currentWindow, currentGrouping, mode);
+      });
+      colorControls.appendChild(button);
+    }
+    colorControls.className = "control-bar";
+
+    draw(buildSnapshot(data, window, grouping.key, colorMode));
   }
 
-  render(currentWindow, currentGrouping);
-  window.addEventListener("resize", () => render(currentWindow, currentGrouping));
+  render(currentWindow, currentGrouping, currentColorMode);
+  window.addEventListener("resize", () => render(currentWindow, currentGrouping, currentColorMode));
 }
 
 init().catch(() => {

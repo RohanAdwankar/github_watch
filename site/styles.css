@@ -144,6 +144,20 @@ a {
   flex-wrap: wrap;
 }
 
+.control-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.control-label {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .scale-legend {
   display: flex;
   align-items: center;
@@ -311,6 +325,7 @@ button.active {
 
   .header-side,
   .window-bar,
+  .control-bar,
   .scale-legend {
     margin-top: 8px;
   }

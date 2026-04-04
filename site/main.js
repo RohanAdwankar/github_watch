@@ -2,6 +2,7 @@ const board = document.getElementById("board");
 const tooltip = document.getElementById("tooltip");
 const windowBar = document.getElementById("window-bar");
 const groupingBar = document.getElementById("grouping-bar");
+const scaleLegend = document.getElementById("scale-legend");
 
 const GROUPING_OPTIONS = [
   { key: "language", label: "Language" },
@@ -55,11 +56,67 @@ function mixChannel(a, b, t) {
 function colorForScore(score) {
   const clamped = Math.max(-1, Math.min(1, score || 0));
   const white = [248, 248, 244];
-  const green = [47, 143, 91];
-  const red = [182, 66, 55];
+  const green = [22, 125, 78];
+  const red = [137, 24, 31];
   const base = clamped >= 0 ? green : red;
-  const t = 0.2 + Math.abs(clamped) * 0.75;
+  const t = 0.08 + Math.abs(clamped) * 0.92;
   return `rgb(${mixChannel(white[0], base[0], t)} ${mixChannel(white[1], base[1], t)} ${mixChannel(white[2], base[2], t)})`;
+}
+
+function quantile(sortedValues, p) {
+  if (!sortedValues.length) return 0;
+  const index = Math.max(0, Math.min(sortedValues.length - 1, Math.floor((sortedValues.length - 1) * p)));
+  return sortedValues[index];
+}
+
+function formatPercent(value) {
+  if (!Number.isFinite(value)) return "0%";
+  const absValue = Math.abs(value);
+  const digits = absValue >= 1 ? 1 : absValue >= 0.1 ? 2 : 3;
+  return `${value >= 0 ? "+" : ""}${value.toFixed(digits)}%`;
+}
+
+function buildColorScale(repos) {
+  const negatives = repos
+    .filter((repo) => repo.growthMode === "delta" && repo.growthPercent < 0)
+    .map((repo) => Math.abs(repo.growthPercent))
+    .sort((a, b) => a - b);
+  const positives = repos
+    .filter((repo) => repo.growthMode === "delta" && repo.growthPercent > 0)
+    .map((repo) => repo.growthPercent)
+    .sort((a, b) => a - b);
+  const negativeBound = negatives.length ? Math.max(quantile(negatives, 0.9), negatives[0]) : 0.05;
+  const positiveBound = positives.length ? Math.max(quantile(positives, 0.9), positives[0]) : 0.25;
+  return {
+    negativeBound,
+    positiveBound,
+    legendStops: [
+      { label: `<= ${formatPercent(-negativeBound)}`, value: -1 },
+      { label: formatPercent(-(negativeBound / 2)), value: -0.45 },
+      { label: "0%", value: 0 },
+      { label: formatPercent(positiveBound / 2), value: 0.45 },
+      { label: `>= ${formatPercent(positiveBound)}`, value: 1 },
+    ],
+  };
+}
+
+function scoreForPercent(percent, scale) {
+  if (!Number.isFinite(percent) || percent === 0) return 0;
+  if (percent < 0) {
+    return -Math.sqrt(Math.min(1, Math.abs(percent) / Math.max(scale.negativeBound, 0.0001)));
+  }
+  return Math.sqrt(Math.min(1, percent / Math.max(scale.positiveBound, 0.0001)));
+}
+
+function renderScaleLegend(scale, windowLabel) {
+  scaleLegend.innerHTML = `
+    <div class="scale-legend-label">${windowLabel} change</div>
+    <div class="scale-legend-bar">
+      ${scale.legendStops.map((stop) => `
+        <div class="scale-legend-step ${Math.abs(stop.value) > 0.35 ? "dark" : ""}" style="background:${colorForScore(stop.value)}">${stop.label}</div>
+      `).join("")}
+    </div>
+  `;
 }
 
 function binaryTreemap(items, x, y, width, height) {
@@ -203,7 +260,14 @@ function getAvailableWindows(repos, windows) {
 }
 
 function buildSnapshot(data, selectedWindow, groupingMode) {
-  const repos = data.repos.map((repo) => computeRepo(repo, selectedWindow.minutes)).sort((a, b) => b.stars - a.stars);
+  const computedRepos = data.repos.map((repo) => computeRepo(repo, selectedWindow.minutes));
+  const colorScale = buildColorScale(computedRepos);
+  const repos = computedRepos
+    .map((repo) => ({
+      ...repo,
+      growthScore: Number(scoreForPercent(repo.growthPercent, colorScale).toFixed(4)),
+    }))
+    .sort((a, b) => b.stars - a.stars);
   const sectorsByName = new Map();
   const topicFrequency = buildTopicFrequency(repos);
 
@@ -229,6 +293,7 @@ function buildSnapshot(data, selectedWindow, groupingMode) {
       totalRepos: repos.length,
       totalStars: repos.reduce((sum, repo) => sum + repo.stars, 0),
     },
+    colorScale,
     sectors,
   };
 }
@@ -240,6 +305,7 @@ function draw(snapshot) {
   document.getElementById("legend").textContent = `Size = current stars. Color = change over ${snapshot.selectedWindow.label}. Grouped by ${snapshot.groupingMode}.`;
   document.getElementById("stat-repos").textContent = formatNumber(snapshot.stats.totalRepos);
   document.getElementById("stat-stars").textContent = formatNumber(snapshot.stats.totalStars);
+  renderScaleLegend(snapshot.colorScale, snapshot.selectedWindow.label);
 
   board.innerHTML = "";
   const rect = board.getBoundingClientRect();

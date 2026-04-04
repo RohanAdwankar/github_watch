@@ -184,7 +184,7 @@ button.active {
   position: absolute;
   overflow: hidden;
   background: var(--sector);
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  border: 3px solid rgba(0, 0, 0, 0.24);
 }
 
 .sector-label {
@@ -197,7 +197,7 @@ button.active {
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.18);
   background: rgba(233, 233, 225, 0.95);
   z-index: 2;
 }
@@ -215,7 +215,7 @@ button.active {
 
 .repo-name {
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 500;
   line-height: 1;
   letter-spacing: -0.02em;
   word-break: break-word;

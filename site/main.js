@@ -267,19 +267,23 @@ function draw(snapshot) {
     const repoBoxes = binaryTreemap(
       box.item.repos.map((repo) => ({ ...repo, value: repo.stars })),
       0,
-      24,
+      20,
       Math.max(box.width, 0),
-      Math.max(box.height - 24, 0),
+      Math.max(box.height - 20, 0),
     );
 
     for (const repoBox of repoBoxes) {
-      if (repoBox.width < 22 || repoBox.height < 22) continue;
-      const showFull = repoBox.width > 120 && repoBox.height > 70;
-      const showDesc = repoBox.width > 170 && repoBox.height > 100;
+      if (repoBox.width < 14 || repoBox.height < 14) continue;
+      const compact = repoBox.width < 52 || repoBox.height < 36;
+      const showName = repoBox.width > 22 && repoBox.height > 18;
+      const showFull = repoBox.width > 110 && repoBox.height > 64;
+      const showDesc = repoBox.width > 165 && repoBox.height > 92;
+      const showMeta = repoBox.width > 125 && repoBox.height > 68;
       const darkText = (repoBox.item.growthScore || 0) < 0.55 && (repoBox.item.growthScore || 0) > -0.55;
 
       const repo = document.createElement("a");
       repo.className = "repo";
+      if (compact) repo.classList.add("compact");
       repo.href = repoBox.item.htmlUrl;
       repo.target = "_blank";
       repo.rel = "noreferrer";
@@ -292,11 +296,11 @@ function draw(snapshot) {
 
       repo.innerHTML = `
         <div>
-          <div class="repo-name">${repoBox.item.name}</div>
+          ${showName ? `<div class="repo-name">${repoBox.item.name}</div>` : ""}
           ${showFull ? `<div class="repo-full">${repoBox.item.fullName}</div>` : ""}
           ${showDesc ? `<div class="repo-desc">${repoBox.item.description}</div>` : ""}
         </div>
-        ${showFull ? `<div class="repo-meta"><span>${formatNumber(repoBox.item.stars)} stars</span><span>${repoBox.item.growthLabel}</span></div>` : ""}
+        ${showMeta ? `<div class="repo-meta"><span>${formatNumber(repoBox.item.stars)} stars</span><span>${repoBox.item.growthLabel}</span></div>` : ""}
       `;
 
       const showTooltip = (event) => {

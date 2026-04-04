@@ -9,13 +9,13 @@
   <body>
     <main class="shell">
       <section class="panel header">
-        <div class="header-row">
-          <h1 class="title">GitHub Watch</h1>
-          <div class="subtitle">Treemap of the largest code repos on GitHub.</div>
-        </div>
-        <div class="meta-row">
-          <div class="meta" id="generated-at">Loading data…</div>
-          <div class="legend-block">
+        <div class="header-grid">
+          <div class="header-main">
+            <h1 class="title">GitHub Watch</h1>
+            <div class="meta" id="generated-at">Loading data…</div>
+          </div>
+          <div class="header-side">
+            <div class="subtitle">Treemap of the largest code repos on GitHub.</div>
             <div class="legend" id="legend">Size = current stars. Color = selected performance window.</div>
             <a class="source-link" href="https://github.com/RohanAdwankar/github_watch" target="_blank" rel="noreferrer">Source code</a>
           </div>
@@ -35,6 +35,7 @@
         </div>
         <div class="window-bar" id="grouping-bar"></div>
         <div class="window-bar" id="window-bar"></div>
+        <div class="window-bar" id="color-controls"></div>
         <div class="scale-legend" id="scale-legend"></div>
       </section>
 

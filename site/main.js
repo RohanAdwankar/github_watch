@@ -5,6 +5,10 @@ const groupingBar = document.getElementById("grouping-bar");
 const colorControls = document.getElementById("color-controls");
 const scaleLegend = document.getElementById("scale-legend");
 
+function escapeHtml(str) {
+  return String(str ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
 const COLOR_TIGHTNESS_KEY = "github-watch-color-tightness";
 const DEFAULT_COLOR_TIGHTNESS = 0.5;
 
@@ -337,7 +341,7 @@ function draw(snapshot) {
   document.getElementById("generated-at").textContent = snapshot.generatedAt
     ? `Cached snapshot from ${new Date(snapshot.generatedAt).toLocaleString()}.`
     : "No snapshot yet.";
-  document.getElementById("legend").textContent = `Size = current stars. Color = change over ${snapshot.selectedWindow.label}. Grouped by ${snapshot.groupingMode}.`;
+  document.getElementById("legend").textContent = "Size = current stars. Color = change over " + snapshot.selectedWindow.label + ". Grouped by " + snapshot.groupingMode + ".";
   document.getElementById("stat-repos").textContent = formatNumber(snapshot.stats.totalRepos);
   document.getElementById("stat-stars").textContent = formatNumber(snapshot.stats.totalStars);
   renderScaleLegend(snapshot.colorScale);
@@ -397,22 +401,20 @@ function draw(snapshot) {
 
       repo.innerHTML = `
         <div>
-          ${showName ? `<div class="repo-name">${repoBox.item.name}</div>` : ""}
-          ${showFull ? `<div class="repo-full">${repoBox.item.fullName}</div>` : ""}
-          ${showDesc ? `<div class="repo-desc">${repoBox.item.description}</div>` : ""}
+          ${showName ? `<div class="repo-name">${escapeHtml(repoBox.item.name)}</div>` : ""}
+          ${showFull ? `<div class="repo-full">${escapeHtml(repoBox.item.fullName)}</div>` : ""}
+          ${showDesc ? `<div class="repo-desc">${escapeHtml(repoBox.item.description)}</div>` : ""}
         </div>
-        ${showMeta ? `<div class="repo-meta"><span>${formatNumber(repoBox.item.stars)} stars</span><span>${repoBox.item.growthLabel}</span></div>` : ""}
+        ${showMeta ? `<div class="repo-meta"><span>${formatNumber(repoBox.item.stars)} stars</span><span>${escapeHtml(repoBox.item.growthLabel)}</span></div>` : ""}
       `;
 
       const showTooltip = (event) => {
-        tooltip.innerHTML = `
-          <strong>${repoBox.item.fullName}</strong><br />
-          ${repoBox.item.description || "No description"}<br /><br />
-          Stars: ${formatNumber(repoBox.item.stars)}<br />
-          Growth: ${repoBox.item.growthLabel}<br />
-          Window: ${snapshot.selectedWindow.label}<br />
-          History points: ${repoBox.item.starHistory?.length || 0}
-        `;
+        tooltip.innerHTML = "<strong>" + escapeHtml(repoBox.item.fullName) + "</strong><br />" +
+          escapeHtml(repoBox.item.description || "No description") + "<br /><br />" +
+          "Stars: " + formatNumber(repoBox.item.stars) + "<br />" +
+          "Growth: " + escapeHtml(repoBox.item.growthLabel) + "<br />" +
+          "Window: " + escapeHtml(snapshot.selectedWindow.label) + "<br />" +
+          "History points: " + (repoBox.item.starHistory?.length || 0);
         tooltip.style.left = `${event.clientX + 14}px`;
         tooltip.style.top = `${event.clientY + 14}px`;
         tooltip.classList.add("visible");

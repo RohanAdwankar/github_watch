@@ -285,11 +285,23 @@ function topicGroupForRepo(repo, topicFrequency) {
 }
 
 function getAvailableWindows(repos, windows) {
-  const timestamps = repos
-    .flatMap((repo) => (repo.starHistory || []).map((point) => new Date(point.ts).getTime()))
-    .filter(Number.isFinite);
-  if (!timestamps.length) return [];
-  const ageMinutes = (Math.max(...timestamps) - Math.min(...timestamps)) / 60000;
+  // Scan for the bounds rather than spreading into Math.max/Math.min. Retention
+  // allows LIMIT * HISTORY_LIMIT = 500 * 300 = 150,000 points, and a spread of
+  // that many arguments overflows the call stack in every engine (V8 gives up
+  // somewhere around 124,000). Once the history filled up this threw on every
+  // load, init()'s catch swallowed it, and the page sat on "Loading data…".
+  let oldest = Infinity;
+  let newest = -Infinity;
+  for (const repo of repos) {
+    for (const point of repo.starHistory || []) {
+      const ts = new Date(point.ts).getTime();
+      if (!Number.isFinite(ts)) continue;
+      if (ts < oldest) oldest = ts;
+      if (ts > newest) newest = ts;
+    }
+  }
+  if (newest === -Infinity) return [];
+  const ageMinutes = (newest - oldest) / 60000;
   return windows.filter((window) => ageMinutes >= window.minutes);
 }
 
@@ -498,6 +510,11 @@ async function init() {
   window.addEventListener("resize", () => render(currentWindow, currentGrouping, currentColorTightness));
 }
 
-init().catch(() => {
+init().catch((error) => {
+  // Log it. Swallowing the error is why the spread overflow above went unnoticed:
+  // the console stayed clean and the header sat on "Loading data…" forever, which
+  // reads like a slow network rather than a page that has already given up.
+  console.error("github_watch: failed to render the heatmap", error);
   board.innerHTML = `<div class="status">Unable to load heatmap data.</div>`;
+  document.getElementById("generated-at").textContent = "Could not load data.";
 });

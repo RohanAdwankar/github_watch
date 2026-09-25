@@ -4,6 +4,17 @@ const windowBar = document.getElementById("window-bar");
 const groupingBar = document.getElementById("grouping-bar");
 const colorControls = document.getElementById("color-controls");
 const scaleLegend = document.getElementById("scale-legend");
+const sheet = document.getElementById("sheet");
+
+// A phone cannot show 500 tiles. At 393px the full set renders 216 rectangles
+// with a median size of 27x14, of which only 30 are large enough to carry a
+// label, so size stops encoding anything and the rest is texture. Narrow
+// screens get the top repos only, in the top few sectors, at a tile size that
+// can actually hold a name.
+const NARROW = "(max-width: 640px)";
+const NARROW_REPO_LIMIT = 40;
+const NARROW_SECTOR_LIMIT = 5;
+const isNarrow = () => window.matchMedia(NARROW).matches;
 
 const COLOR_TIGHTNESS_KEY = "github-watch-color-tightness";
 const DEFAULT_COLOR_TIGHTNESS = 0.5;
@@ -306,14 +317,18 @@ function getAvailableWindows(repos, windows) {
 }
 
 function buildSnapshot(data, selectedWindow, groupingMode, tightness) {
+  const narrow = isNarrow();
   const computedRepos = data.repos.map((repo) => computeRepo(repo, selectedWindow.minutes));
+  // The colour scale is built from every repo, so the palette a tile gets does
+  // not shift when the phone shows fewer of them.
   const colorScale = buildColorScale(computedRepos, tightness);
-  const repos = computedRepos
+  const scored = computedRepos
     .map((repo) => ({
       ...repo,
       growthScore: Number(scoreForPercent(repo.growthPercent, colorScale).toFixed(4)),
     }))
     .sort((a, b) => b.stars - a.stars);
+  const repos = narrow ? scored.slice(0, NARROW_REPO_LIMIT) : scored;
   const sectorsByName = new Map();
   const topicFrequency = buildTopicFrequency(repos);
 
@@ -322,7 +337,7 @@ function buildSnapshot(data, selectedWindow, groupingMode, tightness) {
     if (!sectorsByName.has(groupName)) sectorsByName.set(groupName, []);
     sectorsByName.get(groupName).push(repo);
   }
-  const sectors = [...sectorsByName.entries()]
+  let sectors = [...sectorsByName.entries()]
     .map(([name, members]) => ({
       name,
       stars: members.reduce((sum, repo) => sum + repo.stars, 0),
@@ -330,30 +345,68 @@ function buildSnapshot(data, selectedWindow, groupingMode, tightness) {
     }))
     .sort((a, b) => b.stars - a.stars);
 
+  // Every sector costs a 20px header. On a phone a long tail of one-repo
+  // sectors spends more height on labels than on data, so fold it into one.
+  if (narrow && sectors.length > NARROW_SECTOR_LIMIT) {
+    const kept = sectors.slice(0, NARROW_SECTOR_LIMIT);
+    const folded = sectors.slice(NARROW_SECTOR_LIMIT).flatMap((sector) => sector.repos);
+    kept.push({
+      name: "Other",
+      stars: folded.reduce((sum, repo) => sum + repo.stars, 0),
+      repos: folded.sort((a, b) => b.stars - a.stars),
+    });
+    sectors = kept;
+  }
+
   return {
     generatedAt: data.generatedAt,
     selectedWindow,
     groupingMode,
     colorTightness: tightness,
+    narrow,
     availableWindows: getAvailableWindows(data.repos, data.windows),
     stats: {
       totalRepos: repos.length,
       totalStars: repos.reduce((sum, repo) => sum + repo.stars, 0),
+      shownOf: narrow && repos.length < scored.length ? scored.length : null,
+      starsOf: narrow && repos.length < scored.length
+        ? scored.reduce((sum, repo) => sum + repo.stars, 0)
+        : null,
     },
     colorScale,
     sectors,
   };
 }
 
+function hideSheet() {
+  sheet.hidden = true;
+}
+
+function showSheet(repo, selectedWindow) {
+  document.getElementById("sheet-name").textContent = repo.fullName;
+  document.getElementById("sheet-name").href = repo.htmlUrl;
+  document.getElementById("sheet-desc").textContent = repo.description || "No description";
+  document.getElementById("sheet-meta").textContent =
+    `${formatNumber(repo.stars)} stars · ${repo.growthLabel} over ${selectedWindow.label}`;
+  sheet.hidden = false;
+}
+
+document.getElementById("sheet-close").addEventListener("click", hideSheet);
+
 function draw(snapshot) {
   document.getElementById("generated-at").textContent = snapshot.generatedAt
     ? `Cached snapshot from ${new Date(snapshot.generatedAt).toLocaleString()}.`
     : "No snapshot yet.";
   document.getElementById("legend").textContent = `Size = current stars. Color = change over ${snapshot.selectedWindow.label}. Grouped by ${snapshot.groupingMode}.`;
-  document.getElementById("stat-repos").textContent = formatNumber(snapshot.stats.totalRepos);
-  document.getElementById("stat-stars").textContent = formatNumber(snapshot.stats.totalStars);
+  document.getElementById("stat-repos").textContent = snapshot.stats.shownOf
+    ? `${formatNumber(snapshot.stats.totalRepos)} of ${formatNumber(snapshot.stats.shownOf)}`
+    : formatNumber(snapshot.stats.totalRepos);
+  document.getElementById("stat-stars").textContent = snapshot.stats.starsOf
+    ? `${formatNumber(snapshot.stats.totalStars)} of ${formatNumber(snapshot.stats.starsOf)}`
+    : formatNumber(snapshot.stats.totalStars);
   renderScaleLegend(snapshot.colorScale);
 
+  hideSheet();
   board.innerHTML = "";
   const rect = board.getBoundingClientRect();
   const sectorBoxes = binaryTreemap(
@@ -386,7 +439,10 @@ function draw(snapshot) {
     );
 
     for (const repoBox of repoBoxes) {
-      if (repoBox.width < 14 || repoBox.height < 14) continue;
+      // A tile too small to hold a name is not information, it is texture, so
+      // on a phone the floor is a tile a name fits in rather than 14px.
+      const minTile = snapshot.narrow ? 34 : 14;
+      if (repoBox.width < minTile || repoBox.height < minTile) continue;
       const compact = repoBox.width < 52 || repoBox.height < 36;
       const showName = repoBox.width > 22 && repoBox.height > 18;
       const showFull = repoBox.width > 110 && repoBox.height > 64;
@@ -430,9 +486,19 @@ function draw(snapshot) {
         tooltip.classList.add("visible");
       };
 
-      repo.addEventListener("mouseenter", showTooltip);
-      repo.addEventListener("mousemove", showTooltip);
-      repo.addEventListener("mouseleave", () => tooltip.classList.remove("visible"));
+      if (snapshot.narrow) {
+        // Touch has no hover. The first tap selects the tile and fills the
+        // sheet; the sheet's own title is the link out, so a tap never
+        // navigates away from a board the reader is still reading.
+        repo.addEventListener("click", (event) => {
+          event.preventDefault();
+          showSheet(repoBox.item, snapshot.selectedWindow);
+        });
+      } else {
+        repo.addEventListener("mouseenter", showTooltip);
+        repo.addEventListener("mousemove", showTooltip);
+        repo.addEventListener("mouseleave", () => tooltip.classList.remove("visible"));
+      }
       sector.appendChild(repo);
     }
 

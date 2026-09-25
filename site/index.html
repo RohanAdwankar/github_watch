@@ -45,6 +45,17 @@
     </main>
 
     <div class="tooltip" id="tooltip"></div>
+
+    <!-- Touch has no hover, so on a phone a tile is selected by tapping and its
+         detail lands here instead of in the tooltip. -->
+    <div class="sheet" id="sheet" hidden>
+      <div class="sheet-row">
+        <a class="sheet-name" id="sheet-name" target="_blank" rel="noreferrer"></a>
+        <button class="sheet-close" id="sheet-close" type="button" aria-label="Close">×</button>
+      </div>
+      <div class="sheet-desc" id="sheet-desc"></div>
+      <div class="sheet-meta" id="sheet-meta"></div>
+    </div>
     <script type="module" src="./main.js"></script>
   </body>
 </html>

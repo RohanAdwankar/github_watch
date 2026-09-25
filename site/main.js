@@ -6,6 +6,19 @@ const colorControls = document.getElementById("color-controls");
 const scaleLegend = document.getElementById("scale-legend");
 const sheet = document.getElementById("sheet");
 
+// A repo's name and description come from whoever owns that repo, travel
+// through the GitHub API into heatmap.json, and end up inside innerHTML. A
+// description of `<img src=x onerror=...>` runs in the visitor's browser
+// otherwise. Anything from the feed goes through here before it becomes HTML.
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 // A phone cannot show 500 tiles. At 393px the full set renders 216 rectangles
 // with a median size of 27x14, of which only 30 are large enough to carry a
 // label, so size stops encoding anything and the rest is texture. Narrow
@@ -465,19 +478,19 @@ function draw(snapshot) {
 
       repo.innerHTML = `
         <div>
-          ${showName ? `<div class="repo-name">${repoBox.item.name}</div>` : ""}
-          ${showFull ? `<div class="repo-full">${repoBox.item.fullName}</div>` : ""}
-          ${showDesc ? `<div class="repo-desc">${repoBox.item.description}</div>` : ""}
+          ${showName ? `<div class="repo-name">${escapeHtml(repoBox.item.name)}</div>` : ""}
+          ${showFull ? `<div class="repo-full">${escapeHtml(repoBox.item.fullName)}</div>` : ""}
+          ${showDesc ? `<div class="repo-desc">${escapeHtml(repoBox.item.description)}</div>` : ""}
         </div>
-        ${showMeta ? `<div class="repo-meta"><span>${formatNumber(repoBox.item.stars)} stars</span><span>${repoBox.item.growthLabel}</span></div>` : ""}
+        ${showMeta ? `<div class="repo-meta"><span>${formatNumber(repoBox.item.stars)} stars</span><span>${escapeHtml(repoBox.item.growthLabel)}</span></div>` : ""}
       `;
 
       const showTooltip = (event) => {
         tooltip.innerHTML = `
-          <strong>${repoBox.item.fullName}</strong><br />
-          ${repoBox.item.description || "No description"}<br /><br />
+          <strong>${escapeHtml(repoBox.item.fullName)}</strong><br />
+          ${escapeHtml(repoBox.item.description || "No description")}<br /><br />
           Stars: ${formatNumber(repoBox.item.stars)}<br />
-          Growth: ${repoBox.item.growthLabel}<br />
+          Growth: ${escapeHtml(repoBox.item.growthLabel)}<br />
           Window: ${snapshot.selectedWindow.label}<br />
           History points: ${repoBox.item.starHistory?.length || 0}
         `;
